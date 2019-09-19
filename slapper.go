@@ -4,6 +4,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"log"
@@ -11,6 +12,13 @@ import (
 	"os"
 	"path/filepath"
 )
+
+var gzFiletypes = map[string]bool{
+	".css":  true,
+	".html": true,
+	".js":   true,
+	".xml":  true,
+}
 
 var dir string
 
@@ -144,6 +152,24 @@ func extractFile(f *zip.File, dirName string) error {
 		return err
 	}
 	defer dst.Close()
+
+	if gzFiletypes[filepath.Ext(dstName)] {
+		dstgz, err := os.Create(dstName + ".gz")
+		if err != nil {
+			return err
+		}
+		defer dstgz.Close()
+
+		gzw, err := gzip.NewWriterLevel(dstgz, gzip.BestCompression)
+		if err != nil {
+			return err
+		}
+		defer gzw.Close()
+
+		_, err = io.Copy(io.MultiWriter(dst, gzw), fc)
+
+		return err
+	}
 
 	_, err = io.Copy(dst, fc)
 
