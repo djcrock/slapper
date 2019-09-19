@@ -5,12 +5,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
-	"fmt"
+	"flag"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 var gzFiletypes = map[string]bool{
@@ -23,25 +25,36 @@ var gzFiletypes = map[string]bool{
 var dir string
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Target directory required")
-		fmt.Println("Usage: slapper <targetDirectory>")
+	bind := flag.String("bind", "127.0.0.1", "interface to which the server will bind")
+	port := flag.Int("port", 8080, "port on which the server will listen")
+	dirPtr := flag.String("dir", "", "target directory")
+	flag.Parse()
+
+	dir = *dirPtr
+	if dir == "" {
+		log.Println("Target directory required")
 		os.Exit(1)
 	}
 
-	dir = os.Args[1]
 	dirStat, err := os.Stat(dir)
 	if err != nil || !dirStat.IsDir() {
 		log.Printf("Invalid directory %s", dir)
-		os.Exit(2)
+		os.Exit(1)
 	}
 
-	log.Printf("Slapping %s", dir)
+	ip := net.ParseIP(*bind)
+	if ip == nil {
+		log.Fatal("invalid IP address provided to --bind")
+	}
+
+	addr := ip.String() + ":" + strconv.Itoa(*port)
+
+	log.Printf("Slapping \"%s\" at http://%s/", dir, addr)
 
 	http.HandleFunc("/", handleUploadPage)
 	http.HandleFunc("/slap", handleSlap)
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
 // handleUploadPage serves an upload page to the user.
